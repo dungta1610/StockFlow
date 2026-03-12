@@ -2,10 +2,10 @@ package storage
 
 import "github.com/jackc/pgx/v5/pgxpool"
 
-type sqlStore struct {
+type SQLStore struct {
 	db *pgxpool.Pool
 }
 
-func NewSQLStore(db *pgxpool.Pool) *sqlStore {
-	return &sqlStore{db: db}
+func NewSQLStore(db *pgxpool.Pool) *SQLStore {
+	return &SQLStore{db: db}
 }

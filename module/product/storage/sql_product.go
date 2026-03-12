@@ -10,7 +10,7 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-func (s *sqlStore) CreateProduct(ctx context.Context, data *model.Product) error {
+func (s *SQLStore) CreateProduct(ctx context.Context, data *model.Product) error {
 	query := `
 		INSERT INTO products (
 			sku,
@@ -40,7 +40,7 @@ func (s *sqlStore) CreateProduct(ctx context.Context, data *model.Product) error
 	return nil
 }
 
-func (s *sqlStore) FindProductBySKU(ctx context.Context, sku string) (*model.Product, error) {
+func (s *SQLStore) FindProductBySKU(ctx context.Context, sku string) (*model.Product, error) {
 	query := `
 		SELECT
 			id,
@@ -80,7 +80,7 @@ func (s *sqlStore) FindProductBySKU(ctx context.Context, sku string) (*model.Pro
 	return &product, nil
 }
 
-func (s *sqlStore) GetProductByID(ctx context.Context, id string) (*model.Product, error) {
+func (s *SQLStore) GetProductByID(ctx context.Context, id string) (*model.Product, error) {
 	query := `
 		SELECT
 			id,
@@ -119,7 +119,7 @@ func (s *sqlStore) GetProductByID(ctx context.Context, id string) (*model.Produc
 	return &product, nil
 }
 
-func (s *sqlStore) ListProducts(
+func (s *SQLStore) ListProducts(
 	ctx context.Context,
 	filter *model.Filter,
 	paging *model.Paging,
