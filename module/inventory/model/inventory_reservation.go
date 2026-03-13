@@ -22,13 +22,17 @@ type InventoryReservation struct {
 }
 
 type InventoryReservationCreate struct {
-	OrderID     string `json:"order_id"`
-	OrderItemID string `json:"order_item_id"`
-	InventoryID string `json:"inventory_id"`
-	ProductID   string `json:"product_id"`
-	WarehouseID string `json:"warehouse_id"`
-	Quantity    int    `json:"quantity"`
-	Status      string `json:"status"`
+	ID          string    `json:"id"`
+	OrderID     string    `json:"order_id"`
+	OrderItemID string    `json:"order_item_id"`
+	InventoryID string    `json:"inventory_id"`
+	ProductID   string    `json:"product_id"`
+	WarehouseID string    `json:"warehouse_id"`
+	Quantity    int       `json:"quantity"`
+	Status      string    `json:"status"`
+	ReservedAt  time.Time `json:"reserved_at"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
 }
 
 func (i *InventoryReservationCreate) Validate() error {
@@ -72,4 +76,26 @@ func (i *InventoryReservationCreate) Validate() error {
 	}
 
 	return nil
+}
+
+type ReservationFilter struct {
+	OrderID     string `json:"order_id" form:"order_id"`
+	OrderItemID string `json:"order_item_id" form:"order_item_id"`
+	InventoryID string `json:"inventory_id" form:"inventory_id"`
+	ProductID   string `json:"product_id" form:"product_id"`
+	WarehouseID string `json:"warehouse_id" form:"warehouse_id"`
+	Status      string `json:"status" form:"status"`
+}
+
+func (f *ReservationFilter) Normalize() {
+	if f == nil {
+		return
+	}
+
+	f.OrderID = strings.TrimSpace(f.OrderID)
+	f.OrderItemID = strings.TrimSpace(f.OrderItemID)
+	f.InventoryID = strings.TrimSpace(f.InventoryID)
+	f.ProductID = strings.TrimSpace(f.ProductID)
+	f.WarehouseID = strings.TrimSpace(f.WarehouseID)
+	f.Status = strings.TrimSpace(f.Status)
 }

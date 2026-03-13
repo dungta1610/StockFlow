@@ -24,6 +24,8 @@ type InventoryTransaction struct {
 }
 
 type InventoryTransactionCreate struct {
+	ID                 string
+	CreatedAt          time.Time
 	InventoryID        string  `json:"inventory_id"`
 	ProductID          string  `json:"product_id"`
 	WarehouseID        string  `json:"warehouse_id"`
