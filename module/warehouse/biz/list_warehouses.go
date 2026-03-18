@@ -22,7 +22,7 @@ func (biz *listWarehousesBiz) ListWarehouses(ctx context.Context, filter *model.
 		filter.Normalize()
 	}
 
-	if paging != nil {
+	if paging == nil {
 		paging = model.NewPaging()
 	} else {
 		paging.Normalize()

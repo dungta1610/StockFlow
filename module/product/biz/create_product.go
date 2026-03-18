@@ -2,7 +2,6 @@ package biz
 
 import (
 	"context"
-	"errors"
 	"strings"
 
 	"stockflow/module/product/model"
@@ -23,7 +22,7 @@ func NewCreateProductBiz(store CreateProductStore) *createProductBiz {
 
 func (biz *createProductBiz) CreateProduct(ctx context.Context, data *model.ProductCreate) (*model.Product, error) {
 	if data == nil {
-		return nil, errors.New("product data is required")
+		return nil, model.ErrProductDataIsNil
 	}
 
 	data.Name = strings.TrimSpace(data.Name)

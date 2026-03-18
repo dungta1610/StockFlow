@@ -8,8 +8,6 @@ import (
 )
 
 type AdjustStockStore interface {
-	GetInventoryByProductAndWarehouse(ctx context.Context, productID, warehouseID string) (*model.Inventory, error)
-	CreateInventory(ctx context.Context, data *model.Inventory) error
 	AdjustStock(ctx context.Context, data *model.InventoryAdjust) (*model.Inventory, error)
 }
 
@@ -35,38 +33,7 @@ func (biz *adjustStockBiz) AdjustStock(ctx context.Context, data *model.Inventor
 		return nil, err
 	}
 
-	inventory, err := biz.store.GetInventoryByProductAndWarehouse(
-		ctx,
-		data.ProductID,
-		data.WarehouseID,
-	)
-
-	if err != nil {
-		return nil, err
-	}
-
-	if inventory == nil {
-		if data.Quantity < 0 {
-			return nil, model.ErrInventoryNotFound
-		}
-
-		newInventory := &model.Inventory{
-			ProductID:    data.ProductID,
-			WarehouseID:  data.WarehouseID,
-			AvailableQty: data.Quantity,
-			ReservedQty:  0,
-			Version:      1,
-		}
-
-		if err := biz.store.CreateInventory(ctx, newInventory); err != nil {
-			return nil, err
-		}
-
-		return newInventory, nil
-	}
-
 	updatedInventory, err := biz.store.AdjustStock(ctx, data)
-
 	if err != nil {
 		return nil, err
 	}

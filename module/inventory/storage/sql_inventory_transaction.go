@@ -6,9 +6,15 @@ import (
 	"strings"
 
 	"stockflow/module/inventory/model"
+
+	"github.com/jackc/pgx/v5"
 )
 
-func (s *SQLStore) CreateInventoryTransaction(ctx context.Context, data *model.InventoryTransactionCreate) error {
+type queryRower interface {
+	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
+}
+
+func insertInventoryTransaction(ctx context.Context, q queryRower, data *model.InventoryTransactionCreate) error {
 	query := `
 		INSERT INTO inventory_transactions (
 			inventory_id,
@@ -33,7 +39,7 @@ func (s *SQLStore) CreateInventoryTransaction(ctx context.Context, data *model.I
 		return err
 	}
 
-	err := s.db.QueryRow(
+	err := q.QueryRow(
 		ctx,
 		query,
 		data.InventoryID,
@@ -55,6 +61,14 @@ func (s *SQLStore) CreateInventoryTransaction(ctx context.Context, data *model.I
 	}
 
 	return nil
+}
+
+func (s *SQLStore) insertInventoryTransactionTx(ctx context.Context, tx pgx.Tx, data *model.InventoryTransactionCreate) error {
+	return insertInventoryTransaction(ctx, tx, data)
+}
+
+func (s *SQLStore) CreateInventoryTransaction(ctx context.Context, data *model.InventoryTransactionCreate) error {
+	return insertInventoryTransaction(ctx, s.db, data)
 }
 
 func (s *SQLStore) ListInventoryTransactions(ctx context.Context, filter *model.TransactionFilter, paging *model.Paging) ([]model.InventoryTransaction, error) {

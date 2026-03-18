@@ -13,7 +13,7 @@ func RegisterRoutes(r *ginpkg.Engine, db *pgxpool.Pool) {
 	inventories := r.Group("/inventories")
 	{
 		inventories.POST("/adjust", AdjustStockHandler(store))
-		inventories.GET("", GetInventoryHandler(store))
+		inventories.GET("/detail", GetInventoryHandler(store))
 		inventories.GET("/transactions", ListInventoryTransactionsHandler(store))
 	}
 }
