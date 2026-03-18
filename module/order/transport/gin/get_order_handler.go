@@ -6,6 +6,7 @@ import (
 	ginpkg "github.com/gin-gonic/gin"
 
 	"stockflow/module/order/biz"
+	"stockflow/module/order/model"
 	"stockflow/module/order/storage"
 )
 
@@ -18,7 +19,7 @@ func GetOrderHandler(store *storage.SQLStore) ginpkg.HandlerFunc {
 		order, err := getOrderBiz.GetOrder(c.Request.Context(), id)
 		if err != nil {
 			statusCode := http.StatusBadRequest
-			if err.Error() == "order not found" {
+			if err == model.ErrOrderNotFound {
 				statusCode = http.StatusNotFound
 			}
 

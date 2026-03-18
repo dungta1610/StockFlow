@@ -10,13 +10,6 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-type productSnapshot struct {
-	ID    string
-	SKU   string
-	Name  string
-	Price float64
-}
-
 func (s *SQLStore) CreateOrder(ctx context.Context, data *model.OrderCreate) (*model.Order, error) {
 	if err := data.Validate(); err != nil {
 		return nil, err
@@ -33,59 +26,36 @@ func (s *SQLStore) CreateOrder(ctx context.Context, data *model.OrderCreate) (*m
 		return nil, err
 	}
 
-	var subtotal float64
+	totalAmount := 0.0
 	items := make([]model.OrderItem, 0, len(data.Items))
 
 	for _, reqItem := range data.Items {
-		product, err := getProductSnapshotForOrder(ctx, tx, reqItem.ProductID)
-		if err != nil {
-			return nil, err
-		}
-		if product == nil {
-			return nil, fmt.Errorf("product not found: %s", reqItem.ProductID)
-		}
-
-		unitPrice := reqItem.UnitPrice
-		if unitPrice <= 0 {
-			unitPrice = product.Price
-		}
-
-		linePrice := unitPrice * float64(reqItem.Quantity)
-		subtotal += linePrice
+		lineTotal := reqItem.UnitPrice * float64(reqItem.Quantity)
+		totalAmount += lineTotal
 
 		items = append(items, model.OrderItem{
-			ProductID:   product.ID,
-			ProductSKU:  product.SKU,
-			ProductName: product.Name,
-			Quantity:    reqItem.Quantity,
-			UnitPrice:   unitPrice,
-			LinePrice:   linePrice,
+			ProductID: reqItem.ProductID,
+			Quantity:  reqItem.Quantity,
+			UnitPrice: reqItem.UnitPrice,
+			LineTotal: lineTotal,
 		})
 	}
 
-	orderStatus := model.OrderStatusPending
-	if data.ExpiredAt != nil {
-		orderStatus = model.OrderStatusReserved
+	status := model.OrderStatusPending
+	if data.ReservationExpiresAt != nil {
+		status = model.OrderStatusReserved
 	}
 
-	paymentStatus := model.PaymentStatusPending
-	discountPrice := 0.0
-	totalPrice := subtotal - discountPrice
-
-	orderInsertQuery := `
+	insertOrderQuery := `
 		INSERT INTO orders (
-			code,
+			order_code,
 			user_id,
 			warehouse_id,
 			status,
-			payment_status,
-			subtotal_price,
-			discount_price,
-			total_price,
-			note,
-			expired_at
+			total_amount,
+			reservation_expires_at
 		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+		VALUES ($1, $2, $3, $4, $5, $6)
 		RETURNING
 			id,
 			created_at,
@@ -93,30 +63,22 @@ func (s *SQLStore) CreateOrder(ctx context.Context, data *model.OrderCreate) (*m
 	`
 
 	var order model.Order
-	order.Code = orderCode
+	order.OrderCode = orderCode
 	order.UserID = data.UserID
 	order.WarehouseID = data.WarehouseID
-	order.Status = orderStatus
-	order.PaymentStatus = paymentStatus
-	order.SubtotalPrice = subtotal
-	order.DiscountPrice = discountPrice
-	order.TotalPrice = totalPrice
-	order.Note = data.Note
-	order.ExpiredAt = data.ExpiredAt
+	order.Status = status
+	order.TotalAmount = totalAmount
+	order.ReservationExpiresAt = data.ReservationExpiresAt
 
 	err = tx.QueryRow(
 		ctx,
-		orderInsertQuery,
-		order.Code,
+		insertOrderQuery,
+		order.OrderCode,
 		order.UserID,
 		order.WarehouseID,
 		order.Status,
-		order.PaymentStatus,
-		order.SubtotalPrice,
-		order.DiscountPrice,
-		order.TotalPrice,
-		order.Note,
-		order.ExpiredAt,
+		order.TotalAmount,
+		order.ReservationExpiresAt,
 	).Scan(
 		&order.ID,
 		&order.CreatedAt,
@@ -126,40 +88,34 @@ func (s *SQLStore) CreateOrder(ctx context.Context, data *model.OrderCreate) (*m
 		return nil, fmt.Errorf("cannot create order: %w", err)
 	}
 
-	itemInsertQuery := `
+	insertItemQuery := `
 		INSERT INTO order_items (
 			order_id,
 			product_id,
-			product_sku,
-			product_name,
 			quantity,
 			unit_price,
-			line_price
+			line_total
 		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7)
+		VALUES ($1, $2, $3, $4, $5)
 		RETURNING
 			id,
-			created_at,
-			updated_at;
+			created_at;
 	`
 
-	for idx := range items {
-		items[idx].OrderID = order.ID
+	for i := range items {
+		items[i].OrderID = order.ID
 
 		err := tx.QueryRow(
 			ctx,
-			itemInsertQuery,
-			items[idx].OrderID,
-			items[idx].ProductID,
-			items[idx].ProductSKU,
-			items[idx].ProductName,
-			items[idx].Quantity,
-			items[idx].UnitPrice,
-			items[idx].LinePrice,
+			insertItemQuery,
+			items[i].OrderID,
+			items[i].ProductID,
+			items[i].Quantity,
+			items[i].UnitPrice,
+			items[i].LineTotal,
 		).Scan(
-			&items[idx].ID,
-			&items[idx].CreatedAt,
-			&items[idx].UpdatedAt,
+			&items[i].ID,
+			&items[i].CreatedAt,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("cannot create order item: %w", err)
@@ -189,17 +145,15 @@ func (s *SQLStore) CancelOrder(ctx context.Context, data *model.OrderCancel) (*m
 	lockQuery := `
 		SELECT
 			id,
-			code,
+			order_code,
 			user_id,
 			warehouse_id,
 			status,
-			payment_status,
-			subtotal_price,
-			discount_price,
-			total_price,
-			note,
-			expired_at,
-			canceled_at,
+			total_amount,
+			reservation_expires_at,
+			paid_at,
+			cancelled_at,
+			fulfilled_at,
 			created_at,
 			updated_at
 		FROM orders
@@ -211,17 +165,15 @@ func (s *SQLStore) CancelOrder(ctx context.Context, data *model.OrderCancel) (*m
 
 	err = tx.QueryRow(ctx, lockQuery, data.OrderID).Scan(
 		&order.ID,
-		&order.Code,
+		&order.OrderCode,
 		&order.UserID,
 		&order.WarehouseID,
 		&order.Status,
-		&order.PaymentStatus,
-		&order.SubtotalPrice,
-		&order.DiscountPrice,
-		&order.TotalPrice,
-		&order.Note,
-		&order.ExpiredAt,
-		&order.CanceledAt,
+		&order.TotalAmount,
+		&order.ReservationExpiresAt,
+		&order.PaidAt,
+		&order.CancelledAt,
+		&order.FulfilledAt,
 		&order.CreatedAt,
 		&order.UpdatedAt,
 	)
@@ -233,16 +185,10 @@ func (s *SQLStore) CancelOrder(ctx context.Context, data *model.OrderCancel) (*m
 	}
 
 	switch order.Status {
-	case model.OrderStatusCanceled:
-		return nil, model.ErrOrderAlreadyCanceled
-	case model.OrderStatusExpired:
-		return nil, model.ErrOrderCannotBeCanceled
-	case model.OrderStatusCompleted:
-		return nil, model.ErrOrderCannotBeCanceled
-	}
-
-	if order.PaymentStatus == model.PaymentStatusPaid {
-		return nil, model.ErrOrderCannotBeCanceled
+	case model.OrderStatusCancelled:
+		return nil, model.ErrOrderAlreadyCancelled
+	case model.OrderStatusPaid, model.OrderStatusFulfilled:
+		return nil, model.ErrOrderCannotBeCancelled
 	}
 
 	now := time.Now()
@@ -251,19 +197,19 @@ func (s *SQLStore) CancelOrder(ctx context.Context, data *model.OrderCancel) (*m
 		UPDATE orders
 		SET
 			status = $1,
-			canceled_at = $2,
+			cancelled_at = $2,
 			updated_at = NOW()
 		WHERE id = $3
 		RETURNING updated_at;
 	`
 
-	err = tx.QueryRow(ctx, updateQuery, model.OrderStatusCanceled, now, order.ID).Scan(&order.UpdatedAt)
+	err = tx.QueryRow(ctx, updateQuery, model.OrderStatusCancelled, now, order.ID).Scan(&order.UpdatedAt)
 	if err != nil {
 		return nil, fmt.Errorf("cannot cancel order: %w", err)
 	}
 
-	order.Status = model.OrderStatusCanceled
-	order.CanceledAt = &now
+	order.Status = model.OrderStatusCancelled
+	order.CancelledAt = &now
 
 	if err := tx.Commit(ctx); err != nil {
 		return nil, fmt.Errorf("cannot commit cancel order transaction: %w", err)
@@ -286,17 +232,15 @@ func (s *SQLStore) ExpireOrder(ctx context.Context, data *model.OrderExpire) (*m
 	lockQuery := `
 		SELECT
 			id,
-			code,
+			order_code,
 			user_id,
 			warehouse_id,
 			status,
-			payment_status,
-			subtotal_price,
-			discount_price,
-			total_price,
-			note,
-			expired_at,
-			canceled_at,
+			total_amount,
+			reservation_expires_at,
+			paid_at,
+			cancelled_at,
+			fulfilled_at,
 			created_at,
 			updated_at
 		FROM orders
@@ -308,17 +252,15 @@ func (s *SQLStore) ExpireOrder(ctx context.Context, data *model.OrderExpire) (*m
 
 	err = tx.QueryRow(ctx, lockQuery, data.OrderID).Scan(
 		&order.ID,
-		&order.Code,
+		&order.OrderCode,
 		&order.UserID,
 		&order.WarehouseID,
 		&order.Status,
-		&order.PaymentStatus,
-		&order.SubtotalPrice,
-		&order.DiscountPrice,
-		&order.TotalPrice,
-		&order.Note,
-		&order.ExpiredAt,
-		&order.CanceledAt,
+		&order.TotalAmount,
+		&order.ReservationExpiresAt,
+		&order.PaidAt,
+		&order.CancelledAt,
+		&order.FulfilledAt,
 		&order.CreatedAt,
 		&order.UpdatedAt,
 	)
@@ -332,13 +274,7 @@ func (s *SQLStore) ExpireOrder(ctx context.Context, data *model.OrderExpire) (*m
 	switch order.Status {
 	case model.OrderStatusExpired:
 		return nil, model.ErrOrderAlreadyExpired
-	case model.OrderStatusCanceled:
-		return nil, model.ErrOrderCannotBeExpired
-	case model.OrderStatusCompleted:
-		return nil, model.ErrOrderCannotBeExpired
-	}
-
-	if order.PaymentStatus == model.PaymentStatusPaid {
+	case model.OrderStatusPaid, model.OrderStatusCancelled, model.OrderStatusFulfilled:
 		return nil, model.ErrOrderCannotBeExpired
 	}
 
@@ -376,34 +312,4 @@ func generateOrderCode(ctx context.Context, tx pgx.Tx) (string, error) {
 	}
 
 	return code, nil
-}
-
-func getProductSnapshotForOrder(ctx context.Context, tx pgx.Tx, productID string) (*productSnapshot, error) {
-	query := `
-		SELECT
-			id,
-			sku,
-			name,
-			price
-		FROM products
-		WHERE id = $1
-		LIMIT 1;
-	`
-
-	var item productSnapshot
-
-	err := tx.QueryRow(ctx, query, productID).Scan(
-		&item.ID,
-		&item.SKU,
-		&item.Name,
-		&item.Price,
-	)
-	if err != nil {
-		if err == pgx.ErrNoRows {
-			return nil, nil
-		}
-		return nil, fmt.Errorf("cannot get product snapshot: %w", err)
-	}
-
-	return &item, nil
 }

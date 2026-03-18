@@ -17,11 +17,10 @@ func ListOrdersHandler(store *storage.SQLStore) ginpkg.HandlerFunc {
 
 	return func(c *ginpkg.Context) {
 		filter := &model.Filter{
-			Code:          strings.TrimSpace(c.Query("code")),
-			UserID:        strings.TrimSpace(c.Query("user_id")),
-			WarehouseID:   strings.TrimSpace(c.Query("warehouse_id")),
-			Status:        strings.TrimSpace(c.Query("status")),
-			PaymentStatus: strings.TrimSpace(c.Query("payment_status")),
+			OrderCode:   strings.TrimSpace(c.Query("order_code")),
+			UserID:      strings.TrimSpace(c.Query("user_id")),
+			WarehouseID: strings.TrimSpace(c.Query("warehouse_id")),
+			Status:      strings.TrimSpace(c.Query("status")),
 		}
 
 		paging := model.NewPaging()
