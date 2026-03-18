@@ -21,7 +21,7 @@ func (s *SQLStore) AdjustStock(ctx context.Context, data *model.InventoryAdjust)
 	}
 	defer tx.Rollback(ctx)
 
-	query := `
+	lockQuery := `
 		SELECT
 			id,
 			product_id,
@@ -38,7 +38,7 @@ func (s *SQLStore) AdjustStock(ctx context.Context, data *model.InventoryAdjust)
 
 	var inventory model.Inventory
 
-	err = tx.QueryRow(ctx, query, data.ProductID, data.WarehouseID).Scan(
+	err = tx.QueryRow(ctx, lockQuery, data.ProductID, data.WarehouseID).Scan(
 		&inventory.ID,
 		&inventory.ProductID,
 		&inventory.WarehouseID,
@@ -48,11 +48,90 @@ func (s *SQLStore) AdjustStock(ctx context.Context, data *model.InventoryAdjust)
 		&inventory.CreatedAt,
 		&inventory.UpdatedAt,
 	)
-	if err != nil {
-		if err == pgx.ErrNoRows {
-			return nil, nil
-		}
+	if err != nil && err != pgx.ErrNoRows {
 		return nil, fmt.Errorf("cannot get inventory for adjust stock: %w", err)
+	}
+
+	var createdBy *string
+	if data.CreatedBy != "" {
+		createdBy = &data.CreatedBy
+	}
+
+	reason := data.Reason
+	if reason == "" {
+		reason = "manual_adjustment"
+	}
+
+	if err == pgx.ErrNoRows {
+		if data.Quantity < 0 {
+			return nil, model.ErrInventoryNotEnoughStock
+		}
+
+		createQuery := `
+			INSERT INTO inventory (
+				product_id,
+				warehouse_id,
+				available_qty,
+				reserved_qty,
+				version
+			)
+			VALUES ($1, $2, $3, $4, $5)
+			RETURNING
+				id,
+				product_id,
+				warehouse_id,
+				available_qty,
+				reserved_qty,
+				version,
+				created_at,
+				updated_at;
+		`
+
+		err = tx.QueryRow(
+			ctx,
+			createQuery,
+			data.ProductID,
+			data.WarehouseID,
+			data.Quantity,
+			0,
+			1,
+		).Scan(
+			&inventory.ID,
+			&inventory.ProductID,
+			&inventory.WarehouseID,
+			&inventory.AvailableQty,
+			&inventory.ReservedQty,
+			&inventory.Version,
+			&inventory.CreatedAt,
+			&inventory.UpdatedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("cannot create inventory while adjusting stock: %w", err)
+		}
+
+		txnData := &model.InventoryTransactionCreate{
+			InventoryID:        inventory.ID,
+			ProductID:          inventory.ProductID,
+			WarehouseID:        inventory.WarehouseID,
+			TxnType:            "manual_adjustment",
+			Quantity:           abs(data.Quantity),
+			BeforeAvailableQty: 0,
+			AfterAvailableQty:  inventory.AvailableQty,
+			BeforeReservedQty:  0,
+			AfterReservedQty:   0,
+			Reason:             reason,
+			CreatedBy:          createdBy,
+		}
+
+		if err := s.insertInventoryTransactionTx(ctx, tx, txnData); err != nil {
+			return nil, err
+		}
+
+		if err := tx.Commit(ctx); err != nil {
+			return nil, fmt.Errorf("cannot commit adjust stock transaction: %w", err)
+		}
+
+		return &inventory, nil
 	}
 
 	beforeAvailable := inventory.AvailableQty
@@ -83,52 +162,22 @@ func (s *SQLStore) AdjustStock(ctx context.Context, data *model.InventoryAdjust)
 
 	inventory.AvailableQty = afterAvailable
 
-	var createdBy *string
-	if data.CreatedBy != "" {
-		createdBy = &data.CreatedBy
+	txnData := &model.InventoryTransactionCreate{
+		InventoryID:        inventory.ID,
+		ProductID:          inventory.ProductID,
+		WarehouseID:        inventory.WarehouseID,
+		TxnType:            "manual_adjustment",
+		Quantity:           abs(data.Quantity),
+		BeforeAvailableQty: beforeAvailable,
+		AfterAvailableQty:  afterAvailable,
+		BeforeReservedQty:  beforeReserved,
+		AfterReservedQty:   beforeReserved,
+		Reason:             reason,
+		CreatedBy:          createdBy,
 	}
 
-	reason := data.Reason
-	if reason == "" {
-		reason = "manual_adjustment"
-	}
-
-	insertTxnQuery := `
-		INSERT INTO inventory_transactions (
-			inventory_id,
-			product_id,
-			warehouse_id,
-			order_id,
-			reservation_id,
-			txn_type,
-			quantity,
-			before_available_qty,
-			after_available_qty,
-			before_reserved_qty,
-			after_reserved_qty,
-			reason,
-			created_by
-		)
-		VALUES ($1, $2, $3, NULL, NULL, $4, $5, $6, $7, $8, $9, $10, $11);
-	`
-
-	_, err = tx.Exec(
-		ctx,
-		insertTxnQuery,
-		inventory.ID,
-		inventory.ProductID,
-		inventory.WarehouseID,
-		"manual_adjustment",
-		abs(data.Quantity),
-		beforeAvailable,
-		afterAvailable,
-		beforeReserved,
-		beforeReserved,
-		reason,
-		createdBy,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("cannot create inventory transaction: %w", err)
+	if err := s.insertInventoryTransactionTx(ctx, tx, txnData); err != nil {
+		return nil, err
 	}
 
 	if err := tx.Commit(ctx); err != nil {
