@@ -20,6 +20,7 @@ import (
 	outboxgin "stockflow/module/outbox/transport/gin"
 	paymentgin "stockflow/module/payment/transport/gin"
 	productgin "stockflow/module/product/transport/gin"
+	usergin "stockflow/module/user/transport/gin"
 	warehousegin "stockflow/module/warehouse/transport/gin"
 )
 
@@ -91,6 +92,7 @@ func main() {
 	ordergin.RegisterRoutes(r, pool)
 	paymentgin.RegisterRoutes(r, pool)
 	outboxgin.RegisterRoutes(r, pool)
+	usergin.RegisterRoutes(r, pool)
 
 	log.Printf("server is running on :%s", port)
 	if err := r.Run(":" + port); err != nil {

@@ -12,14 +12,13 @@ const (
 	OrderStatusPaid            = "paid"
 	OrderStatusFulfilled       = "fulfilled"
 	OrderStatusCompleted       = "completed"
-	OrderStatusCanceled        = "canceled"
 	OrderStatusCancelled       = "cancelled"
 	OrderStatusExpired         = "expired"
 )
 
 type Order struct {
 	ID                   string     `json:"id" db:"id"`
-	Code                 string     `json:"code" db:"code"`
+	OrderCode            string     `json:"order_code" db:"order_code"`
 	UserID               string     `json:"user_id" db:"user_id"`
 	WarehouseID          string     `json:"warehouse_id" db:"warehouse_id"`
 	Status               string     `json:"status" db:"status"`
@@ -112,7 +111,7 @@ func (o *OrderExpire) Validate() error {
 }
 
 type Filter struct {
-	Code        string `json:"code" form:"code"`
+	OrderCode   string `json:"order_code" form:"order_code"`
 	UserID      string `json:"user_id" form:"user_id"`
 	WarehouseID string `json:"warehouse_id" form:"warehouse_id"`
 	Status      string `json:"status" form:"status"`
@@ -123,7 +122,7 @@ func (f *Filter) Normalize() {
 		return
 	}
 
-	f.Code = strings.TrimSpace(strings.ToUpper(f.Code))
+	f.OrderCode = strings.TrimSpace(strings.ToUpper(f.OrderCode))
 	f.UserID = strings.TrimSpace(f.UserID)
 	f.WarehouseID = strings.TrimSpace(f.WarehouseID)
 	f.Status = strings.TrimSpace(f.Status)

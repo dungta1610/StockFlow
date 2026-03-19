@@ -14,7 +14,7 @@ func (s *SQLStore) GetOrderByID(ctx context.Context, id string) (*model.Order, e
 	orderQuery := `
 		SELECT
 			id,
-			code,
+			order_code,
 			user_id,
 			warehouse_id,
 			status,
@@ -34,7 +34,7 @@ func (s *SQLStore) GetOrderByID(ctx context.Context, id string) (*model.Order, e
 
 	err := s.db.QueryRow(ctx, orderQuery, id).Scan(
 		&order.ID,
-		&order.Code,
+		&order.OrderCode,
 		&order.UserID,
 		&order.WarehouseID,
 		&order.Status,
@@ -109,7 +109,7 @@ func (s *SQLStore) ListOrders(ctx context.Context, filter *model.Filter, paging 
 	queryBuilder.WriteString(`
 		SELECT
 			id,
-			code,
+			order_code,
 			user_id,
 			warehouse_id,
 			status,
@@ -125,9 +125,9 @@ func (s *SQLStore) ListOrders(ctx context.Context, filter *model.Filter, paging 
 	`)
 
 	if filter != nil {
-		if filter.Code != "" {
-			queryBuilder.WriteString(fmt.Sprintf(" AND code = $%d", argPos))
-			args = append(args, strings.ToUpper(strings.TrimSpace(filter.Code)))
+		if filter.OrderCode != "" {
+			queryBuilder.WriteString(fmt.Sprintf(" AND order_code = $%d", argPos))
+			args = append(args, strings.ToUpper(strings.TrimSpace(filter.OrderCode)))
 			argPos++
 		}
 
@@ -170,7 +170,7 @@ func (s *SQLStore) ListOrders(ctx context.Context, filter *model.Filter, paging 
 
 		if err := rows.Scan(
 			&order.ID,
-			&order.Code,
+			&order.OrderCode,
 			&order.UserID,
 			&order.WarehouseID,
 			&order.Status,

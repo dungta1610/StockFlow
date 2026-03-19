@@ -12,12 +12,10 @@ var (
 	ErrOrderItemsIsEmpty            = errors.New("order items are required")
 	ErrOrderTotalAmountInvalid      = errors.New("order total amount must be greater than or equal to 0")
 	ErrOrderNotFound                = errors.New("order not found")
-	ErrOrderCannotBeCanceled        = errors.New("order cannot be canceled")
-	ErrOrderCannotBeCancelled       = ErrOrderCannotBeCanceled
+	ErrOrderCannotBeCancelled       = errors.New("order cannot be cancelled")
 	ErrOrderCannotBeExpired         = errors.New("order cannot be expired")
 	ErrOrderCannotBePaid            = errors.New("order cannot be paid")
-	ErrOrderAlreadyCanceled         = errors.New("order already canceled")
-	ErrOrderAlreadyCancelled        = ErrOrderAlreadyCanceled
+	ErrOrderAlreadyCancelled        = errors.New("order already cancelled")
 	ErrOrderAlreadyExpired          = errors.New("order already expired")
 	ErrOrderAlreadyPaid             = errors.New("order already paid")
 	ErrOrderInvalidStatusTransition = errors.New("order invalid status transition")
