@@ -18,13 +18,11 @@ func (s *SQLStore) GetOrderByID(ctx context.Context, id string) (*model.Order, e
 			user_id,
 			warehouse_id,
 			status,
-			payment_status,
-			subtotal_price,
-			discount_price,
-			total_price,
-			note,
-			expired_at,
-			canceled_at,
+			total_amount,
+			reservation_expires_at,
+			paid_at,
+			cancelled_at,
+			fulfilled_at,
 			created_at,
 			updated_at
 		FROM orders
@@ -40,13 +38,11 @@ func (s *SQLStore) GetOrderByID(ctx context.Context, id string) (*model.Order, e
 		&order.UserID,
 		&order.WarehouseID,
 		&order.Status,
-		&order.PaymentStatus,
-		&order.SubtotalPrice,
-		&order.DiscountPrice,
-		&order.TotalPrice,
-		&order.Note,
-		&order.ExpiredAt,
-		&order.CanceledAt,
+		&order.TotalAmount,
+		&order.ReservationExpiresAt,
+		&order.PaidAt,
+		&order.CancelledAt,
+		&order.FulfilledAt,
 		&order.CreatedAt,
 		&order.UpdatedAt,
 	)
@@ -62,13 +58,10 @@ func (s *SQLStore) GetOrderByID(ctx context.Context, id string) (*model.Order, e
 			id,
 			order_id,
 			product_id,
-			product_sku,
-			product_name,
 			quantity,
 			unit_price,
-			line_price,
-			created_at,
-			updated_at
+			line_total,
+			created_at
 		FROM order_items
 		WHERE order_id = $1
 		ORDER BY created_at ASC;
@@ -88,13 +81,10 @@ func (s *SQLStore) GetOrderByID(ctx context.Context, id string) (*model.Order, e
 			&item.ID,
 			&item.OrderID,
 			&item.ProductID,
-			&item.ProductSKU,
-			&item.ProductName,
 			&item.Quantity,
 			&item.UnitPrice,
-			&item.LinePrice,
+			&item.LineTotal,
 			&item.CreatedAt,
-			&item.UpdatedAt,
 		); err != nil {
 			return nil, fmt.Errorf("cannot scan order item: %w", err)
 		}
@@ -123,13 +113,11 @@ func (s *SQLStore) ListOrders(ctx context.Context, filter *model.Filter, paging 
 			user_id,
 			warehouse_id,
 			status,
-			payment_status,
-			subtotal_price,
-			discount_price,
-			total_price,
-			note,
-			expired_at,
-			canceled_at,
+			total_amount,
+			reservation_expires_at,
+			paid_at,
+			cancelled_at,
+			fulfilled_at,
 			created_at,
 			updated_at
 		FROM orders
@@ -160,12 +148,6 @@ func (s *SQLStore) ListOrders(ctx context.Context, filter *model.Filter, paging 
 			args = append(args, strings.TrimSpace(filter.Status))
 			argPos++
 		}
-
-		if filter.PaymentStatus != "" {
-			queryBuilder.WriteString(fmt.Sprintf(" AND payment_status = $%d", argPos))
-			args = append(args, strings.TrimSpace(filter.PaymentStatus))
-			argPos++
-		}
 	}
 
 	queryBuilder.WriteString(" ORDER BY created_at DESC")
@@ -192,13 +174,11 @@ func (s *SQLStore) ListOrders(ctx context.Context, filter *model.Filter, paging 
 			&order.UserID,
 			&order.WarehouseID,
 			&order.Status,
-			&order.PaymentStatus,
-			&order.SubtotalPrice,
-			&order.DiscountPrice,
-			&order.TotalPrice,
-			&order.Note,
-			&order.ExpiredAt,
-			&order.CanceledAt,
+			&order.TotalAmount,
+			&order.ReservationExpiresAt,
+			&order.PaidAt,
+			&order.CancelledAt,
+			&order.FulfilledAt,
 			&order.CreatedAt,
 			&order.UpdatedAt,
 		); err != nil {

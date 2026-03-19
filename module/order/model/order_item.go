@@ -6,16 +6,13 @@ import (
 )
 
 type OrderItem struct {
-	ID          string    `json:"id" db:"id"`
-	OrderID     string    `json:"order_id" db:"order_id"`
-	ProductID   string    `json:"product_id" db:"product_id"`
-	ProductSKU  string    `json:"product_sku" db:"product_sku"`
-	ProductName string    `json:"product_name" db:"product_name"`
-	Quantity    int       `json:"quantity" db:"quantity"`
-	UnitPrice   float64   `json:"unit_price" db:"unit_price"`
-	LinePrice   float64   `json:"line_price" db:"line_price"`
-	CreatedAt   time.Time `json:"created_at" db:"created_at"`
-	UpdatedAt   time.Time `json:"updated_at" db:"updated_at"`
+	ID        string    `json:"id" db:"id"`
+	OrderID   string    `json:"order_id" db:"order_id"`
+	ProductID string    `json:"product_id" db:"product_id"`
+	Quantity  int       `json:"quantity" db:"quantity"`
+	UnitPrice float64   `json:"unit_price" db:"unit_price"`
+	LineTotal float64   `json:"line_total" db:"line_total"`
+	CreatedAt time.Time `json:"created_at" db:"created_at"`
 }
 
 type OrderItemCreate struct {

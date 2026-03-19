@@ -25,8 +25,6 @@ func (biz *expireOrderBiz) ExpireOrder(ctx context.Context, data *model.OrderExp
 	}
 
 	data.OrderID = strings.TrimSpace(data.OrderID)
-	data.Reason = strings.TrimSpace(data.Reason)
-	data.By = strings.TrimSpace(data.By)
 
 	if err := data.Validate(); err != nil {
 		return nil, err

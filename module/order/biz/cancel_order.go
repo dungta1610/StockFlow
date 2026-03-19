@@ -25,8 +25,6 @@ func (biz *cancelOrderBiz) CancelOrder(ctx context.Context, data *model.OrderCan
 	}
 
 	data.OrderID = strings.TrimSpace(data.OrderID)
-	data.Reason = strings.TrimSpace(data.Reason)
-	data.By = strings.TrimSpace(data.By)
 
 	if err := data.Validate(); err != nil {
 		return nil, err

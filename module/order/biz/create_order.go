@@ -26,8 +26,6 @@ func (biz *createOrderBiz) CreateOrder(ctx context.Context, data *model.OrderCre
 
 	data.UserID = strings.TrimSpace(data.UserID)
 	data.WarehouseID = strings.TrimSpace(data.WarehouseID)
-	data.Note = strings.TrimSpace(data.Note)
-	data.CreatedBy = strings.TrimSpace(data.CreatedBy)
 
 	for i := range data.Items {
 		data.Items[i].ProductID = strings.TrimSpace(data.Items[i].ProductID)

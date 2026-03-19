@@ -16,8 +16,13 @@ func ListOrdersHandler(store *storage.SQLStore) ginpkg.HandlerFunc {
 	listOrdersBiz := biz.NewListOrdersBiz(store)
 
 	return func(c *ginpkg.Context) {
+		code := strings.TrimSpace(c.Query("code"))
+		if code == "" {
+			code = strings.TrimSpace(c.Query("order_code"))
+		}
+
 		filter := &model.Filter{
-			OrderCode:   strings.TrimSpace(c.Query("order_code")),
+			Code:        code,
 			UserID:      strings.TrimSpace(c.Query("user_id")),
 			WarehouseID: strings.TrimSpace(c.Query("warehouse_id")),
 			Status:      strings.TrimSpace(c.Query("status")),

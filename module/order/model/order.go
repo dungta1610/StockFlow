@@ -10,44 +10,36 @@ const (
 	OrderStatusReserved        = "reserved"
 	OrderStatusAwaitingPayment = "awaiting_payment"
 	OrderStatusPaid            = "paid"
+	OrderStatusFulfilled       = "fulfilled"
 	OrderStatusCompleted       = "completed"
 	OrderStatusCanceled        = "canceled"
+	OrderStatusCancelled       = "cancelled"
 	OrderStatusExpired         = "expired"
 )
 
-const (
-	PaymentStatusPending  = "pending"
-	PaymentStatusPaid     = "paid"
-	PaymentStatusFailed   = "failed"
-	PaymentStatusRefunded = "refunded"
-)
-
 type Order struct {
-	ID            string     `json:"id" db:"id"`
-	Code          string     `json:"code" db:"code"`
-	UserID        string     `json:"user_id" db:"user_id"`
-	WarehouseID   string     `json:"warehouse_id" db:"warehouse_id"`
-	Status        string     `json:"status" db:"status"`
-	PaymentStatus string     `json:"payment_status" db:"payment_status"`
-	SubtotalPrice float64    `json:"subtotal_price" db:"subtotal_price"`
-	DiscountPrice float64    `json:"discount_price" db:"discount_price"`
-	TotalPrice    float64    `json:"total_price" db:"total_price"`
-	Note          string     `json:"note" db:"note"`
-	ExpiredAt     *time.Time `json:"expired_at,omitempty" db:"expired_at"`
-	CanceledAt    *time.Time `json:"canceled_at,omitempty" db:"canceled_at"`
-	CreatedAt     time.Time  `json:"created_at" db:"created_at"`
-	UpdatedAt     time.Time  `json:"updated_at" db:"updated_at"`
+	ID                   string     `json:"id" db:"id"`
+	Code                 string     `json:"code" db:"code"`
+	UserID               string     `json:"user_id" db:"user_id"`
+	WarehouseID          string     `json:"warehouse_id" db:"warehouse_id"`
+	Status               string     `json:"status" db:"status"`
+	TotalAmount          float64    `json:"total_amount" db:"total_amount"`
+	ReservationExpiresAt *time.Time `json:"reservation_expires_at,omitempty" db:"reservation_expires_at"`
+	PaidAt               *time.Time `json:"paid_at,omitempty" db:"paid_at"`
+	CancelledAt          *time.Time `json:"cancelled_at,omitempty" db:"cancelled_at"`
+	FulfilledAt          *time.Time `json:"fulfilled_at,omitempty" db:"fulfilled_at"`
+	CreatedAt            time.Time  `json:"created_at" db:"created_at"`
+	UpdatedAt            time.Time  `json:"updated_at" db:"updated_at"`
 
 	Items []OrderItem `json:"items,omitempty"`
 }
 
 type OrderCreate struct {
-	UserID      string            `json:"user_id"`
-	WarehouseID string            `json:"warehouse_id"`
-	Note        string            `json:"note"`
-	ExpiredAt   *time.Time        `json:"expired_at"`
-	CreatedBy   string            `json:"created_by"`
-	Items       []OrderItemCreate `json:"items"`
+	UserID               string            `json:"user_id"`
+	WarehouseID          string            `json:"warehouse_id"`
+	ReservationExpiresAt *time.Time        `json:"reservation_expires_at"`
+	ExpiredAt            *time.Time        `json:"expired_at"`
+	Items                []OrderItemCreate `json:"items"`
 }
 
 func (o *OrderCreate) Validate() error {
@@ -57,8 +49,10 @@ func (o *OrderCreate) Validate() error {
 
 	o.UserID = strings.TrimSpace(o.UserID)
 	o.WarehouseID = strings.TrimSpace(o.WarehouseID)
-	o.Note = strings.TrimSpace(o.Note)
-	o.CreatedBy = strings.TrimSpace(o.CreatedBy)
+
+	if o.ReservationExpiresAt == nil && o.ExpiredAt != nil {
+		o.ReservationExpiresAt = o.ExpiredAt
+	}
 
 	if o.UserID == "" {
 		return ErrOrderUserIDIsBlank
@@ -83,8 +77,6 @@ func (o *OrderCreate) Validate() error {
 
 type OrderCancel struct {
 	OrderID string `json:"order_id"`
-	Reason  string `json:"reason"`
-	By      string `json:"by"`
 }
 
 func (o *OrderCancel) Validate() error {
@@ -93,15 +85,9 @@ func (o *OrderCancel) Validate() error {
 	}
 
 	o.OrderID = strings.TrimSpace(o.OrderID)
-	o.Reason = strings.TrimSpace(o.Reason)
-	o.By = strings.TrimSpace(o.By)
 
 	if o.OrderID == "" {
 		return ErrOrderIDIsBlank
-	}
-
-	if o.Reason == "" {
-		return ErrOrderCancelReasonIsBlank
 	}
 
 	return nil
@@ -109,8 +95,6 @@ func (o *OrderCancel) Validate() error {
 
 type OrderExpire struct {
 	OrderID string `json:"order_id"`
-	Reason  string `json:"reason"`
-	By      string `json:"by"`
 }
 
 func (o *OrderExpire) Validate() error {
@@ -119,8 +103,6 @@ func (o *OrderExpire) Validate() error {
 	}
 
 	o.OrderID = strings.TrimSpace(o.OrderID)
-	o.Reason = strings.TrimSpace(o.Reason)
-	o.By = strings.TrimSpace(o.By)
 
 	if o.OrderID == "" {
 		return ErrOrderIDIsBlank
@@ -130,11 +112,10 @@ func (o *OrderExpire) Validate() error {
 }
 
 type Filter struct {
-	Code          string `json:"code" form:"code"`
-	UserID        string `json:"user_id" form:"user_id"`
-	WarehouseID   string `json:"warehouse_id" form:"warehouse_id"`
-	Status        string `json:"status" form:"status"`
-	PaymentStatus string `json:"payment_status" form:"payment_status"`
+	Code        string `json:"code" form:"code"`
+	UserID      string `json:"user_id" form:"user_id"`
+	WarehouseID string `json:"warehouse_id" form:"warehouse_id"`
+	Status      string `json:"status" form:"status"`
 }
 
 func (f *Filter) Normalize() {
@@ -146,5 +127,4 @@ func (f *Filter) Normalize() {
 	f.UserID = strings.TrimSpace(f.UserID)
 	f.WarehouseID = strings.TrimSpace(f.WarehouseID)
 	f.Status = strings.TrimSpace(f.Status)
-	f.PaymentStatus = strings.TrimSpace(f.PaymentStatus)
 }

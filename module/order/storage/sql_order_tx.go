@@ -21,7 +21,7 @@ func (s *SQLStore) CreateOrder(ctx context.Context, data *model.OrderCreate) (*m
 	}
 	defer tx.Rollback(ctx)
 
-	orderCode, err := generateOrderCode(ctx, tx)
+	code, err := generateOrderCode(ctx, tx)
 	if err != nil {
 		return nil, err
 	}
@@ -48,7 +48,7 @@ func (s *SQLStore) CreateOrder(ctx context.Context, data *model.OrderCreate) (*m
 
 	insertOrderQuery := `
 		INSERT INTO orders (
-			order_code,
+			code,
 			user_id,
 			warehouse_id,
 			status,
@@ -63,7 +63,7 @@ func (s *SQLStore) CreateOrder(ctx context.Context, data *model.OrderCreate) (*m
 	`
 
 	var order model.Order
-	order.OrderCode = orderCode
+	order.Code = code
 	order.UserID = data.UserID
 	order.WarehouseID = data.WarehouseID
 	order.Status = status
@@ -73,7 +73,7 @@ func (s *SQLStore) CreateOrder(ctx context.Context, data *model.OrderCreate) (*m
 	err = tx.QueryRow(
 		ctx,
 		insertOrderQuery,
-		order.OrderCode,
+		order.Code,
 		order.UserID,
 		order.WarehouseID,
 		order.Status,
@@ -122,13 +122,11 @@ func (s *SQLStore) CreateOrder(ctx context.Context, data *model.OrderCreate) (*m
 		}
 	}
 
-	order.Items = items
-
 	if err := tx.Commit(ctx); err != nil {
 		return nil, fmt.Errorf("cannot commit create order transaction: %w", err)
 	}
 
-	return &order, nil
+	return s.GetOrderByID(ctx, order.ID)
 }
 
 func (s *SQLStore) CancelOrder(ctx context.Context, data *model.OrderCancel) (*model.Order, error) {
@@ -145,7 +143,7 @@ func (s *SQLStore) CancelOrder(ctx context.Context, data *model.OrderCancel) (*m
 	lockQuery := `
 		SELECT
 			id,
-			order_code,
+			code,
 			user_id,
 			warehouse_id,
 			status,
@@ -165,7 +163,7 @@ func (s *SQLStore) CancelOrder(ctx context.Context, data *model.OrderCancel) (*m
 
 	err = tx.QueryRow(ctx, lockQuery, data.OrderID).Scan(
 		&order.ID,
-		&order.OrderCode,
+		&order.Code,
 		&order.UserID,
 		&order.WarehouseID,
 		&order.Status,
@@ -185,10 +183,10 @@ func (s *SQLStore) CancelOrder(ctx context.Context, data *model.OrderCancel) (*m
 	}
 
 	switch order.Status {
-	case model.OrderStatusCancelled:
-		return nil, model.ErrOrderAlreadyCancelled
-	case model.OrderStatusPaid, model.OrderStatusFulfilled:
-		return nil, model.ErrOrderCannotBeCancelled
+	case model.OrderStatusCanceled, model.OrderStatusCancelled:
+		return nil, model.ErrOrderAlreadyCanceled
+	case model.OrderStatusPaid, model.OrderStatusFulfilled, model.OrderStatusCompleted, model.OrderStatusExpired:
+		return nil, model.ErrOrderCannotBeCanceled
 	}
 
 	now := time.Now()
@@ -203,12 +201,12 @@ func (s *SQLStore) CancelOrder(ctx context.Context, data *model.OrderCancel) (*m
 		RETURNING updated_at;
 	`
 
-	err = tx.QueryRow(ctx, updateQuery, model.OrderStatusCancelled, now, order.ID).Scan(&order.UpdatedAt)
+	err = tx.QueryRow(ctx, updateQuery, model.OrderStatusCanceled, now, order.ID).Scan(&order.UpdatedAt)
 	if err != nil {
 		return nil, fmt.Errorf("cannot cancel order: %w", err)
 	}
 
-	order.Status = model.OrderStatusCancelled
+	order.Status = model.OrderStatusCanceled
 	order.CancelledAt = &now
 
 	if err := tx.Commit(ctx); err != nil {
@@ -232,7 +230,7 @@ func (s *SQLStore) ExpireOrder(ctx context.Context, data *model.OrderExpire) (*m
 	lockQuery := `
 		SELECT
 			id,
-			order_code,
+			code,
 			user_id,
 			warehouse_id,
 			status,
@@ -252,7 +250,7 @@ func (s *SQLStore) ExpireOrder(ctx context.Context, data *model.OrderExpire) (*m
 
 	err = tx.QueryRow(ctx, lockQuery, data.OrderID).Scan(
 		&order.ID,
-		&order.OrderCode,
+		&order.Code,
 		&order.UserID,
 		&order.WarehouseID,
 		&order.Status,
@@ -274,7 +272,7 @@ func (s *SQLStore) ExpireOrder(ctx context.Context, data *model.OrderExpire) (*m
 	switch order.Status {
 	case model.OrderStatusExpired:
 		return nil, model.ErrOrderAlreadyExpired
-	case model.OrderStatusPaid, model.OrderStatusCancelled, model.OrderStatusFulfilled:
+	case model.OrderStatusPaid, model.OrderStatusCanceled, model.OrderStatusCancelled, model.OrderStatusFulfilled, model.OrderStatusCompleted:
 		return nil, model.ErrOrderCannotBeExpired
 	}
 
