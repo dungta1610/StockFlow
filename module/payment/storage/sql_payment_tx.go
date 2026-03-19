@@ -71,7 +71,7 @@ func (s *SQLStore) CheckoutPayment(ctx context.Context, data *model.PaymentCheck
 		}
 		return &existing, nil
 	}
-	if err != nil && err != pgx.ErrNoRows {
+	if err != pgx.ErrNoRows {
 		return nil, fmt.Errorf("cannot check existing payment by idempotency key: %w", err)
 	}
 
