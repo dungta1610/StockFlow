@@ -2,95 +2,58 @@ package storage
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
-	"time"
 
 	"stockflow/module/outbox/model"
-
-	"github.com/jackc/pgx/v5"
 )
 
-func (s *SQLStore) EnqueueEvent(ctx context.Context, data *model.OutboxEventCreate) (*model.OutboxEvent, error) {
-	if err := data.Validate(); err != nil {
-		return nil, err
-	}
+const (
+	outboxStatusPending    = "pending"
+	outboxStatusProcessing = "processing"
+	outboxStatusProcessed  = "processed"
+	outboxStatusFailed     = "failed"
+)
 
-	payloadJSON, err := data.PayloadJSON()
-	if err != nil {
-		return nil, err
-	}
+type rowScanner interface {
+	Scan(dest ...any) error
+}
 
-	status := model.OutboxStatusPending
-	now := time.Now()
+func scanOutboxEvent(scanner rowScanner) (*model.OutboxEvent, error) {
+	var (
+		event        model.OutboxEvent
+		payloadBytes []byte
+	)
 
-	availableAt := data.AvailableAt
-	if availableAt == nil {
-		availableAt = &now
-	}
-
-	query := `
-		INSERT INTO outbox_events (
-			aggregate_type,
-			aggregate_id,
-			event_type,
-			payload,
-			status,
-			retry_count,
-			last_error,
-			available_at
-		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-		RETURNING
-			id,
-			aggregate_type,
-			aggregate_id,
-			event_type,
-			payload,
-			status,
-			retry_count,
-			last_error,
-			available_at,
-			processed_at,
-			created_at,
-			updated_at;
-	`
-
-	var event model.OutboxEvent
-
-	err = s.db.QueryRow(
-		ctx,
-		query,
-		data.AggregateType,
-		data.AggregateID,
-		data.EventType,
-		payloadJSON,
-		status,
-		0,
-		"",
-		availableAt,
-	).Scan(
+	err := scanner.Scan(
 		&event.ID,
 		&event.AggregateType,
 		&event.AggregateID,
 		&event.EventType,
-		&event.Payload,
+		&payloadBytes,
 		&event.Status,
 		&event.RetryCount,
-		&event.LastError,
-		&event.AvailableAt,
+		&event.NextRetryAt,
+		&event.ErrorMessage,
 		&event.ProcessedAt,
 		&event.CreatedAt,
 		&event.UpdatedAt,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("cannot enqueue outbox event: %w", err)
+		return nil, err
 	}
+
+	event.Payload = json.RawMessage(payloadBytes)
 
 	return &event, nil
 }
 
-func (s *SQLStore) ListPendingEvents(ctx context.Context, filter *model.Filter, paging *model.Paging) ([]model.OutboxEvent, error) {
+func (s *SQLStore) ListPendingEvents(
+	ctx context.Context,
+	filter *model.Filter,
+	paging *model.Paging,
+) ([]model.OutboxEvent, error) {
 	queryBuilder := strings.Builder{}
 	args := make([]interface{}, 0)
 	argPos := 1
@@ -104,44 +67,42 @@ func (s *SQLStore) ListPendingEvents(ctx context.Context, filter *model.Filter, 
 			payload,
 			status,
 			retry_count,
-			last_error,
-			available_at,
+			next_retry_at,
+			error_message,
 			processed_at,
 			created_at,
 			updated_at
 		FROM outbox_events
-		WHERE 1=1
+		WHERE status IN ('pending', 'failed')
+		  AND processed_at IS NULL
+		  AND (next_retry_at IS NULL OR next_retry_at <= NOW())
 	`)
 
 	if filter != nil {
 		if filter.AggregateType != "" {
 			queryBuilder.WriteString(fmt.Sprintf(" AND aggregate_type = $%d", argPos))
-			args = append(args, strings.TrimSpace(strings.ToLower(filter.AggregateType)))
+			args = append(args, filter.AggregateType)
 			argPos++
 		}
 
 		if filter.AggregateID != "" {
 			queryBuilder.WriteString(fmt.Sprintf(" AND aggregate_id = $%d", argPos))
-			args = append(args, strings.TrimSpace(filter.AggregateID))
+			args = append(args, filter.AggregateID)
 			argPos++
 		}
 
 		if filter.EventType != "" {
 			queryBuilder.WriteString(fmt.Sprintf(" AND event_type = $%d", argPos))
-			args = append(args, strings.TrimSpace(strings.ToLower(filter.EventType)))
+			args = append(args, filter.EventType)
 			argPos++
 		}
 
 		if filter.Status != "" {
 			queryBuilder.WriteString(fmt.Sprintf(" AND status = $%d", argPos))
-			args = append(args, strings.TrimSpace(strings.ToLower(filter.Status)))
+			args = append(args, filter.Status)
 			argPos++
 		}
 	}
-
-	queryBuilder.WriteString(fmt.Sprintf(" AND (available_at IS NULL OR available_at <= $%d)", argPos))
-	args = append(args, time.Now())
-	argPos++
 
 	queryBuilder.WriteString(" ORDER BY created_at ASC")
 
@@ -159,26 +120,12 @@ func (s *SQLStore) ListPendingEvents(ctx context.Context, filter *model.Filter, 
 	events := make([]model.OutboxEvent, 0)
 
 	for rows.Next() {
-		var event model.OutboxEvent
-
-		if err := rows.Scan(
-			&event.ID,
-			&event.AggregateType,
-			&event.AggregateID,
-			&event.EventType,
-			&event.Payload,
-			&event.Status,
-			&event.RetryCount,
-			&event.LastError,
-			&event.AvailableAt,
-			&event.ProcessedAt,
-			&event.CreatedAt,
-			&event.UpdatedAt,
-		); err != nil {
+		event, err := scanOutboxEvent(rows)
+		if err != nil {
 			return nil, fmt.Errorf("cannot scan outbox event: %w", err)
 		}
 
-		events = append(events, event)
+		events = append(events, *event)
 	}
 
 	if err := rows.Err(); err != nil {
@@ -186,50 +133,4 @@ func (s *SQLStore) ListPendingEvents(ctx context.Context, filter *model.Filter, 
 	}
 
 	return events, nil
-}
-
-func (s *SQLStore) GetOutboxEventByID(ctx context.Context, id string) (*model.OutboxEvent, error) {
-	query := `
-		SELECT
-			id,
-			aggregate_type,
-			aggregate_id,
-			event_type,
-			payload,
-			status,
-			retry_count,
-			last_error,
-			available_at,
-			processed_at,
-			created_at,
-			updated_at
-		FROM outbox_events
-		WHERE id = $1
-		LIMIT 1;
-	`
-
-	var event model.OutboxEvent
-
-	err := s.db.QueryRow(ctx, query, id).Scan(
-		&event.ID,
-		&event.AggregateType,
-		&event.AggregateID,
-		&event.EventType,
-		&event.Payload,
-		&event.Status,
-		&event.RetryCount,
-		&event.LastError,
-		&event.AvailableAt,
-		&event.ProcessedAt,
-		&event.CreatedAt,
-		&event.UpdatedAt,
-	)
-	if err != nil {
-		if err == pgx.ErrNoRows {
-			return nil, nil
-		}
-		return nil, fmt.Errorf("cannot get outbox event by id: %w", err)
-	}
-
-	return &event, nil
 }

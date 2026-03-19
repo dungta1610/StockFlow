@@ -12,6 +12,9 @@ func RegisterRoutes(r *ginpkg.Engine, db *pgxpool.Pool) {
 
 	outbox := r.Group("/outbox")
 	{
-		outbox.GET("/events", ListOutboxHandler(store))
+		outbox.POST("/events", EnqueueEventHandler(store))
+		outbox.GET("/events", ListPendingEventsHandler(store))
+		outbox.POST("/events/:id/processed", MarkProcessedHandler(store))
+		outbox.POST("/events/:id/failed", MarkFailedHandler(store))
 	}
 }

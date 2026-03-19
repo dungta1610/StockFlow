@@ -21,12 +21,12 @@ func NewEnqueueEventBiz(store EnqueueEventStore) *enqueueEventBiz {
 
 func (biz *enqueueEventBiz) EnqueueEvent(ctx context.Context, data *model.OutboxEventCreate) (*model.OutboxEvent, error) {
 	if data == nil {
-		return nil, model.ErrOutboxEventDataIsRequired
+		return nil, model.ErrOutboxEventCreateDataIsRequired
 	}
 
-	data.AggregateType = strings.TrimSpace(strings.ToLower(data.AggregateType))
+	data.AggregateType = strings.TrimSpace(data.AggregateType)
 	data.AggregateID = strings.TrimSpace(data.AggregateID)
-	data.EventType = strings.TrimSpace(strings.ToLower(data.EventType))
+	data.EventType = strings.TrimSpace(data.EventType)
 
 	if err := data.Validate(); err != nil {
 		return nil, err

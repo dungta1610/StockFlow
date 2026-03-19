@@ -12,7 +12,7 @@ import (
 	"stockflow/module/outbox/storage"
 )
 
-func ListOutboxHandler(store *storage.SQLStore) ginpkg.HandlerFunc {
+func ListPendingEventsHandler(store *storage.SQLStore) ginpkg.HandlerFunc {
 	listPendingEventsBiz := biz.NewListPendingEventsBiz(store)
 
 	return func(c *ginpkg.Context) {

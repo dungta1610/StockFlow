@@ -6,89 +6,98 @@ import (
 	"time"
 )
 
-const (
-	OutboxStatusPending    = "pending"
-	OutboxStatusProcessing = "processing"
-	OutboxStatusProcessed  = "processed"
-	OutboxStatusFailed     = "failed"
-)
-
 type OutboxEvent struct {
-	ID            string     `json:"id" db:"id"`
-	AggregateType string     `json:"aggregate_type" db:"aggregate_type"`
-	AggregateID   string     `json:"aggregate_id" db:"aggregate_id"`
-	EventType     string     `json:"event_type" db:"event_type"`
-	Payload       string     `json:"payload" db:"payload"`
-	Status        string     `json:"status" db:"status"`
-	RetryCount    int        `json:"retry_count" db:"retry_count"`
-	LastError     string     `json:"last_error" db:"last_error"`
-	AvailableAt   *time.Time `json:"available_at,omitempty" db:"available_at"`
-	ProcessedAt   *time.Time `json:"processed_at,omitempty" db:"processed_at"`
-	CreatedAt     time.Time  `json:"created_at" db:"created_at"`
-	UpdatedAt     time.Time  `json:"updated_at" db:"updated_at"`
+	ID            string          `json:"id" db:"id"`
+	AggregateType string          `json:"aggregate_type" db:"aggregate_type"`
+	AggregateID   string          `json:"aggregate_id" db:"aggregate_id"`
+	EventType     string          `json:"event_type" db:"event_type"`
+	Payload       json.RawMessage `json:"payload" db:"payload"`
+	Status        string          `json:"status" db:"status"`
+	RetryCount    int             `json:"retry_count" db:"retry_count"`
+	NextRetryAt   *time.Time      `json:"next_retry_at,omitempty" db:"next_retry_at"`
+	ErrorMessage  *string         `json:"error_message,omitempty" db:"error_message"`
+	ProcessedAt   *time.Time      `json:"processed_at,omitempty" db:"processed_at"`
+	CreatedAt     time.Time       `json:"created_at" db:"created_at"`
+	UpdatedAt     time.Time       `json:"updated_at" db:"updated_at"`
 }
 
 type OutboxEventCreate struct {
-	AggregateType string      `json:"aggregate_type"`
-	AggregateID   string      `json:"aggregate_id"`
-	EventType     string      `json:"event_type"`
-	Payload       interface{} `json:"payload"`
-	AvailableAt   *time.Time  `json:"available_at"`
+	AggregateType string          `json:"aggregate_type"`
+	AggregateID   string          `json:"aggregate_id"`
+	EventType     string          `json:"event_type"`
+	Payload       json.RawMessage `json:"payload"`
 }
 
-func (d *OutboxEventCreate) Validate() error {
-	if d == nil {
-		return ErrOutboxEventDataIsRequired
+func (o *OutboxEventCreate) Validate() error {
+	if o == nil {
+		return ErrOutboxEventCreateDataIsRequired
 	}
 
-	d.AggregateType = strings.TrimSpace(strings.ToLower(d.AggregateType))
-	d.AggregateID = strings.TrimSpace(d.AggregateID)
-	d.EventType = strings.TrimSpace(strings.ToLower(d.EventType))
+	o.AggregateType = strings.TrimSpace(o.AggregateType)
+	o.AggregateID = strings.TrimSpace(o.AggregateID)
+	o.EventType = strings.TrimSpace(o.EventType)
 
-	if d.AggregateType == "" {
+	if o.AggregateType == "" {
 		return ErrOutboxAggregateTypeIsBlank
 	}
 
-	if d.AggregateID == "" {
+	if o.AggregateID == "" {
 		return ErrOutboxAggregateIDIsBlank
 	}
 
-	if d.EventType == "" {
+	if o.EventType == "" {
 		return ErrOutboxEventTypeIsBlank
 	}
 
-	if d.Payload == nil {
-		return ErrOutboxPayloadIsRequired
+	if len(o.Payload) == 0 {
+		return ErrOutboxPayloadIsBlank
+	}
+
+	if !json.Valid(o.Payload) {
+		return ErrOutboxPayloadInvalid
 	}
 
 	return nil
 }
 
-func (d *OutboxEventCreate) PayloadJSON() (string, error) {
-	if err := d.Validate(); err != nil {
-		return "", err
-	}
-
-	raw, err := json.Marshal(d.Payload)
-	if err != nil {
-		return "", ErrOutboxPayloadInvalid
-	}
-
-	return string(raw), nil
-}
-
 type OutboxEventMarkProcessed struct {
-	ID string `json:"id"`
+	EventID string `json:"event_id"`
 }
 
-func (d *OutboxEventMarkProcessed) Validate() error {
-	if d == nil {
+func (o *OutboxEventMarkProcessed) Validate() error {
+	if o == nil {
 		return ErrOutboxMarkProcessedDataIsRequired
 	}
 
-	d.ID = strings.TrimSpace(d.ID)
-	if d.ID == "" {
+	o.EventID = strings.TrimSpace(o.EventID)
+
+	if o.EventID == "" {
 		return ErrOutboxEventIDIsBlank
+	}
+
+	return nil
+}
+
+type OutboxEventMarkFailed struct {
+	EventID      string     `json:"event_id"`
+	ErrorMessage string     `json:"error_message"`
+	NextRetryAt  *time.Time `json:"next_retry_at"`
+}
+
+func (o *OutboxEventMarkFailed) Validate() error {
+	if o == nil {
+		return ErrOutboxMarkFailedDataIsRequired
+	}
+
+	o.EventID = strings.TrimSpace(o.EventID)
+	o.ErrorMessage = strings.TrimSpace(o.ErrorMessage)
+
+	if o.EventID == "" {
+		return ErrOutboxEventIDIsBlank
+	}
+
+	if o.ErrorMessage == "" {
+		return ErrOutboxErrorMessageIsBlank
 	}
 
 	return nil
@@ -106,8 +115,8 @@ func (f *Filter) Normalize() {
 		return
 	}
 
-	f.AggregateType = strings.TrimSpace(strings.ToLower(f.AggregateType))
+	f.AggregateType = strings.TrimSpace(f.AggregateType)
 	f.AggregateID = strings.TrimSpace(f.AggregateID)
-	f.EventType = strings.TrimSpace(strings.ToLower(f.EventType))
-	f.Status = strings.TrimSpace(strings.ToLower(f.Status))
+	f.EventType = strings.TrimSpace(f.EventType)
+	f.Status = strings.TrimSpace(f.Status)
 }

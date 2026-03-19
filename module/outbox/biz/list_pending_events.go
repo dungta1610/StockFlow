@@ -19,13 +19,8 @@ func NewListPendingEventsBiz(store ListPendingEventsStore) *listPendingEventsBiz
 }
 
 func (biz *listPendingEventsBiz) ListPendingEvents(ctx context.Context, filter *model.Filter, paging *model.Paging) ([]model.OutboxEvent, error) {
-	if filter == nil {
-		filter = &model.Filter{}
-	}
-	filter.Normalize()
-
-	if filter.Status == "" {
-		filter.Status = model.OutboxStatusPending
+	if filter != nil {
+		filter.Normalize()
 	}
 
 	if paging == nil {

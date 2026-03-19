@@ -24,7 +24,7 @@ func (biz *markProcessedBiz) MarkProcessed(ctx context.Context, data *model.Outb
 		return nil, model.ErrOutboxMarkProcessedDataIsRequired
 	}
 
-	data.ID = strings.TrimSpace(data.ID)
+	data.EventID = strings.TrimSpace(data.EventID)
 
 	if err := data.Validate(); err != nil {
 		return nil, err
