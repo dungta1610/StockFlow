@@ -12,8 +12,9 @@ func RegisterRoutes(r *ginpkg.Engine, db *pgxpool.Pool) {
 
 	payments := r.Group("/payments")
 	{
-		payments.POST("/checkout", CheckoutHandler(store))
-		payments.POST("/callback", CallbackHandler(store))
+		payments.POST("/checkout", CheckoutPaymentHandler(store))
+		payments.POST("/callback", CallbackPaymentHandler(store))
+		payments.GET("", ListPaymentsHandler(store))
 		payments.GET("/:id", GetPaymentHandler(store))
 	}
 }

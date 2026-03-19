@@ -10,18 +10,18 @@ import (
 	"stockflow/module/payment/storage"
 )
 
-func CallbackHandler(store *storage.SQLStore) ginpkg.HandlerFunc {
-	callbackBiz := biz.NewCallbackBiz(store)
+func CallbackPaymentHandler(store *storage.SQLStore) ginpkg.HandlerFunc {
+	callbackPaymentBiz := biz.NewCallbackPaymentBiz(store)
 
 	return func(c *ginpkg.Context) {
-		var data model.Callback
+		var data model.PaymentCallback
 
 		if err := c.ShouldBindJSON(&data); err != nil {
 			c.JSON(http.StatusBadRequest, ginpkg.H{"error": err.Error()})
 			return
 		}
 
-		payment, err := callbackBiz.HandleCallback(c.Request.Context(), &data)
+		updatedPayment, err := callbackPaymentBiz.CallbackPayment(c.Request.Context(), &data)
 		if err != nil {
 			statusCode := http.StatusBadRequest
 			if err == model.ErrPaymentNotFound {
@@ -32,6 +32,6 @@ func CallbackHandler(store *storage.SQLStore) ginpkg.HandlerFunc {
 			return
 		}
 
-		c.JSON(http.StatusOK, ginpkg.H{"data": payment})
+		c.JSON(http.StatusOK, ginpkg.H{"data": updatedPayment})
 	}
 }
