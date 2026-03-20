@@ -15,7 +15,7 @@ func (s *SQLStore) EnqueueEvent(ctx context.Context, data *model.OutboxEventCrea
 	}
 
 	query := `
-		INSERT INTO outbox_events (
+		INSERT INTO public.outbox_events (
 			aggregate_type,
 			aggregate_id,
 			event_type,
@@ -73,7 +73,7 @@ func (s *SQLStore) MarkProcessed(ctx context.Context, data *model.OutboxEventMar
 	lockQuery := `
 		SELECT
 			id
-		FROM outbox_events
+		FROM public.outbox_events
 		WHERE id = $1
 		LIMIT 1
 		FOR UPDATE;
@@ -89,7 +89,7 @@ func (s *SQLStore) MarkProcessed(ctx context.Context, data *model.OutboxEventMar
 	}
 
 	updateQuery := `
-		UPDATE outbox_events
+		UPDATE public.outbox_events
 		SET
 			status = $1,
 			processed_at = NOW(),
@@ -138,7 +138,7 @@ func (s *SQLStore) MarkFailed(ctx context.Context, data *model.OutboxEventMarkFa
 	lockQuery := `
 		SELECT
 			id
-		FROM outbox_events
+		FROM public.outbox_events
 		WHERE id = $1
 		LIMIT 1
 		FOR UPDATE;
@@ -154,7 +154,7 @@ func (s *SQLStore) MarkFailed(ctx context.Context, data *model.OutboxEventMarkFa
 	}
 
 	updateQuery := `
-		UPDATE outbox_events
+		UPDATE public.outbox_events
 		SET
 			status = $1,
 			retry_count = retry_count + 1,

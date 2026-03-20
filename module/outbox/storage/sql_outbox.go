@@ -72,7 +72,7 @@ func (s *SQLStore) ListPendingEvents(
 			processed_at,
 			created_at,
 			updated_at
-		FROM outbox_events
+		FROM public.outbox_events
 		WHERE status IN ('pending', 'failed')
 		  AND processed_at IS NULL
 		  AND (next_retry_at IS NULL OR next_retry_at <= NOW())
