@@ -17,7 +17,6 @@ import (
 
 	inventorygin "stockflow/module/inventory/transport/gin"
 	ordergin "stockflow/module/order/transport/gin"
-	outboxgin "stockflow/module/outbox/transport/gin"
 	paymentgin "stockflow/module/payment/transport/gin"
 	productgin "stockflow/module/product/transport/gin"
 	usergin "stockflow/module/user/transport/gin"
@@ -91,7 +90,6 @@ func main() {
 	inventorygin.RegisterRoutes(r, pool)
 	ordergin.RegisterRoutes(r, pool)
 	paymentgin.RegisterRoutes(r, pool)
-	outboxgin.RegisterRoutes(r, pool)
 	usergin.RegisterRoutes(r, pool)
 
 	log.Printf("server is running on :%s", port)
