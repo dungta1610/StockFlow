@@ -356,54 +356,31 @@ stockflow/
     │       └── expire_order_handler.go          # HTTP handler: POST /orders/:id/expire
     │
     ├── payment/
-    │   ├── model/
-    │   │   ├── payment.go                       # Payment entity, checkout/callback request DTOs
-    │   │   ├── filter.go                        # Filter structure for payment listing
-    │   │   ├── paging.go                        # Paging structure for payment list
-    │   │   └── errors.go                        # Payment module custom errors
-    │   │
-    │   ├── biz/
-    │   │   ├── checkout.go                      # Use case: create payment/checkout record
-    │   │   ├── callback.go                      # Use case: handle payment callback status update
-    │   │   ├── get_payment.go                   # Use case: fetch payment detail by ID
-    │   │   └── list_payments.go                 # Use case: list payments with paging/filter
-    │   │
-    │   ├── storage/
-    │   │   ├── sql.go                           # Payment SQL store root + shared helpers
-    │   │   ├── sql_payment.go                   # SQL for payment reads/writes
-    │   │   └── sql_payment_tx.go                # Transactional SQL for payment state changes when needed
-    │   │
-    │   └── transport/gin/
-    │       ├── routes.go                        # Register /payments routes
-    │       ├── checkout_handler.go              # HTTP handler: POST /payments/checkout
-    │       ├── callback_handler.go              # HTTP handler: POST /payments/callback
-    │       ├── get_payment_handler.go           # HTTP handler: GET /payments/:id
-    │       └── list_payments_handler.go         # HTTP handler: GET /payments
-    │
-    └── outbox/
         ├── model/
-        │   ├── outbox_event.go                  # Outbox event entity, enqueue/update DTOs
-        │   ├── filter.go                        # Filter structure for outbox event listing
-        │   ├── paging.go                        # Paging structure for outbox list
-        │   └── errors.go                        # Outbox module custom errors
+        │   ├── payment.go                       # Payment entity, checkout/callback request DTOs
+        │   ├── filter.go                        # Filter structure for payment listing
+        │   ├── paging.go                        # Paging structure for payment list
+        │   └── errors.go                        # Payment module custom errors
         │
         ├── biz/
-        │   ├── enqueue_event.go                 # Use case: create outbox event
-        │   ├── list_pending_events.go           # Use case: list outbox events
-        │   ├── mark_processed.go                # Use case: mark event as processed
-        │   └── mark_failed.go                   # Use case: mark event as failed
+        │   ├── checkout.go                      # Use case: create payment/checkout record
+        │   ├── callback.go                      # Use case: handle payment callback status update
+        │   ├── get_payment.go                   # Use case: fetch payment detail by ID
+        │   └── list_payments.go                 # Use case: list payments with paging/filter
         │
         ├── storage/
-        │   ├── sql.go                           # Outbox SQL store root
-        │   ├── sql_outbox.go                    # SQL for enqueue/list/update outbox events
-        │   └── sql_outbox_tx.go                 # Transaction-capable helper for outbox persistence
+        │   ├── sql.go                           # Payment SQL store root + shared helpers
+        │   ├── sql_payment.go                   # SQL for payment reads/writes
+        │   └── sql_payment_tx.go                # Transactional SQL for payment state changes when needed
         │
         └── transport/gin/
-            ├── routes.go                        # Register /outbox/events routes
-            ├── enqueue_event_handler.go         # HTTP handler: POST /outbox/events
-            ├── list_pending_events_handler.go   # HTTP handler: GET /outbox/events
-            ├── mark_processed_handler.go        # HTTP handler: POST /outbox/events/:id/processed
-            └── mark_failed_handler.go           # HTTP handler: POST /outbox/events/:id/failed
+            ├── routes.go                        # Register /payments routes
+            ├── checkout_handler.go              # HTTP handler: POST /payments/checkout
+            ├── callback_handler.go              # HTTP handler: POST /payments/callback
+            ├── get_payment_handler.go           # HTTP handler: GET /payments/:id
+            └── list_payments_handler.go         # HTTP handler: GET /payments
+    
+    
 ```
 
 ## Module-First Layering
