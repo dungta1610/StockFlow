@@ -102,7 +102,7 @@ This backend can be viewed as a mini e-commerce architecture centered on **produ
                                ▼
 ┌──────────────────────────────────────────────────────────────────┐
 │                       Gin HTTP API Layer                         │
-│  /users  /products  /warehouses  /inventories  /orders  /payments │
+│  /users  /products  /warehouses  /inventories  /orders  /payments│
 └──────────────────────────────────────────────────────────────────┘
                                │
                                ▼
@@ -111,7 +111,7 @@ This backend can be viewed as a mini e-commerce architecture centered on **produ
 │                                                                  │
 │  User Module        Product Module        Warehouse Module       │
 │  Inventory Module   Order Module          Payment Module         │
-│  Outbox Module (experimental)                                   │
+│  Outbox Module (experimental)                                    │
 └──────────────────────────────────────────────────────────────────┘
                                │
                 ┌──────────────┴──────────────┐
@@ -210,68 +210,200 @@ It is best described as a warehouse-oriented mini e-commerce backend, not a full
 
 ```text
 stockflow/
-├── main.go                              # Composition root: init Postgres, Redis, Gin, middleware, routes
-├── docker-compose.yml                   # PostgreSQL + Redis orchestration
-├── .env                                 # Local runtime configuration
-├── go.mod / go.sum                      # Go module files
-├── StockFlow.png                        # Project image / schema-related asset
+├── main.go                                      # Composition root: load env, init Postgres/Redis, attach middleware, register all module routes, expose /health
+├── Dockerfile                                   # Multi-stage image build for running the Go API in Docker
+├── docker-compose.yml                           # Local infrastructure orchestration for PostgreSQL and Redis
+├── .env                                         # Runtime configuration: DB_DSN, REDIS_ADDR, PORT
+├── go.mod                                       # Go module definition and direct dependencies
+├── go.sum                                       # Dependency lock/checksum file
+├── README.md                                    # Project README
+├── StockFlow.png                                # Project asset / image used for documentation
 │
 ├── component/
 │   ├── postgres/
-│   │   └── postgres.go                  # PostgreSQL connection helper (pgxpool)
+│   │   └── postgres.go                          # pgxpool initialization helper for PostgreSQL connection pooling
+│   │
 │   ├── redis/
-│   │   └── redis.go                     # Redis connection helper
+│   │   └── redis.go                             # Redis client initialization helper
+│   │
 │   └── ratelimit/
-│       └── limiter.go                   # Redis-based rate limiter
+│       └── limiter.go                           # Redis-backed rate limiter implementation
 │
 ├── middleware/
-│   └── ratelimit.go                     # Gin middleware wrapper for limiter
+│   └── ratelimit.go                             # Gin middleware wrapper that applies the Redis limiter to incoming requests
 │
 ├── db/
-│   └── init/                            # Database init folder (currently no SQL files in repository)
+│   └── init/                                    # DB bootstrap folder; currently empty in repository, no SQL migration/init files present
 │
 └── module/
     ├── user/
     │   ├── model/
+    │   │   ├── user.go                          # User entity, create/update request DTOs, response-facing structures
+    │   │   ├── paging.go                        # Shared paging structure for list users API
+    │   │   └── errors.go                        # User module custom domain/validation errors
+    │   │
     │   ├── biz/
+    │   │   ├── create_user.go                   # Use case: validate input and create a user
+    │   │   ├── get_user.go                      # Use case: fetch user detail by ID
+    │   │   ├── list_users.go                    # Use case: list users with paging
+    │   │   └── update_user.go                   # Use case: update user information
+    │   │
     │   ├── storage/
+    │   │   ├── sql.go                           # User SQL store root, shared DB handle abstraction
+    │   │   └── sql_user.go                      # Handwritten SQL queries for create/get/list/update user
+    │   │
     │   └── transport/gin/
+    │       ├── routes.go                        # Register /users routes into Gin router
+    │       ├── create_user_handler.go           # HTTP handler: POST /users
+    │       ├── get_user_handler.go              # HTTP handler: GET /users/:id
+    │       ├── list_users_handler.go            # HTTP handler: GET /users
+    │       └── update_user_handler.go           # HTTP handler: PUT /users/:id
     │
     ├── product/
     │   ├── model/
+    │   │   ├── product.go                       # Product entity, create request DTO, response-facing structures
+    │   │   ├── paging.go                        # Paging structure for product listing
+    │   │   └── errors.go                        # Product module custom errors
+    │   │
     │   ├── biz/
+    │   │   ├── create_product.go                # Use case: validate input and create product
+    │   │   ├── get_product.go                   # Use case: fetch product detail by ID
+    │   │   └── list_products.go                 # Use case: list products with paging
+    │   │
     │   ├── storage/
+    │   │   ├── sql.go                           # Product SQL store root
+    │   │   └── sql_product.go                   # Handwritten SQL queries for create/get/list product
+    │   │
     │   └── transport/gin/
+    │       ├── routes.go                        # Register /products routes
+    │       ├── create_product_handler.go        # HTTP handler: POST /products
+    │       ├── get_product_handler.go           # HTTP handler: GET /products/:id
+    │       └── list_products_handler.go         # HTTP handler: GET /products
     │
     ├── warehouse/
     │   ├── model/
+    │   │   ├── warehouse.go                     # Warehouse entity, create request DTO, response-facing structures
+    │   │   ├── paging.go                        # Paging structure for warehouse listing
+    │   │   └── errors.go                        # Warehouse module custom errors
+    │   │
     │   ├── biz/
+    │   │   ├── create_warehouse.go              # Use case: validate input and create warehouse
+    │   │   ├── get_warehouse.go                 # Use case: fetch warehouse detail by ID
+    │   │   └── list_warehouses.go               # Use case: list warehouses with paging
+    │   │
     │   ├── storage/
+    │   │   ├── sql.go                           # Warehouse SQL store root
+    │   │   └── sql_warehouse.go                 # Handwritten SQL queries for create/get/list warehouse
+    │   │
     │   └── transport/gin/
+    │       ├── routes.go                        # Register /warehouses routes
+    │       ├── create_warehouse_handler.go      # HTTP handler: POST /warehouses
+    │       ├── get_warehouse_handler.go         # HTTP handler: GET /warehouses/:id
+    │       └── list_warehouses_handler.go       # HTTP handler: GET /warehouses
     │
     ├── inventory/
     │   ├── model/
+    │   │   ├── inventory.go                     # Inventory entity/detail DTOs
+    │   │   ├── inventory_transaction.go         # Inventory transaction entity/history DTOs
+    │   │   ├── inventory_reservation.go         # Reservation-related model definitions
+    │   │   ├── paging.go                        # Paging structure for transaction history
+    │   │   └── errors.go                        # Inventory module custom errors
+    │   │
     │   ├── biz/
+    │   │   ├── adjust_stock.go                  # Use case: adjust stock quantity
+    │   │   ├── get_inventory.go                 # Use case: fetch inventory by warehouse/product
+    │   │   └── list_inventory_transactions.go   # Use case: list inventory transaction history
+    │   │
     │   ├── storage/
+    │   │   ├── sql.go                           # Inventory SQL store root + shared helpers
+    │   │   ├── sql_inventory.go                 # SQL for reading/updating inventory records
+    │   │   ├── sql_inventory_transaction.go     # SQL for inventory transaction insert/list
+    │   │   └── sql_inventory_reservation.go     # SQL related to inventory reservation persistence
+    │   │
     │   └── transport/gin/
+    │       ├── routes.go                        # Register inventory routes
+    │       ├── adjust_stock_handler.go          # HTTP handler: POST /inventories/adjust
+    │       ├── get_inventory_handler.go         # HTTP handler: GET /inventories/detail
+    │       └── list_inventory_transactions_handler.go # HTTP handler: GET /inventories/transactions
     │
     ├── order/
     │   ├── model/
+    │   │   ├── order.go                         # Order entity, create request, order detail/list DTOs
+    │   │   ├── order_item.go                    # Order item entity and request/response models
+    │   │   ├── filter.go                        # Filter structure for listing orders
+    │   │   ├── paging.go                        # Paging structure for order list
+    │   │   └── errors.go                        # Order module custom errors
+    │   │
     │   ├── biz/
+    │   │   ├── create_order.go                  # Use case: create order with items
+    │   │   ├── get_order.go                     # Use case: fetch order detail by ID
+    │   │   ├── list_orders.go                   # Use case: list orders with paging/filter
+    │   │   ├── cancel_order.go                  # Use case: cancel an order
+    │   │   └── expire_order.go                  # Use case: expire an order
+    │   │
     │   ├── storage/
+    │   │   ├── sql.go                           # Order SQL store root + transaction helper
+    │   │   ├── sql_order.go                     # SQL for order CRUD-like reads/writes
+    │   │   ├── sql_order_item.go                # SQL for persisting and reading order items
+    │   │   └── sql_order_tx.go                  # Transactional SQL flow for order creation/status changes
+    │   │
     │   └── transport/gin/
+    │       ├── routes.go                        # Register /orders routes
+    │       ├── create_order_handler.go          # HTTP handler: POST /orders
+    │       ├── get_order_handler.go             # HTTP handler: GET /orders/:id
+    │       ├── list_orders_handler.go           # HTTP handler: GET /orders
+    │       ├── cancel_order_handler.go          # HTTP handler: POST /orders/:id/cancel
+    │       └── expire_order_handler.go          # HTTP handler: POST /orders/:id/expire
     │
     ├── payment/
     │   ├── model/
+    │   │   ├── payment.go                       # Payment entity, checkout/callback request DTOs
+    │   │   ├── filter.go                        # Filter structure for payment listing
+    │   │   ├── paging.go                        # Paging structure for payment list
+    │   │   └── errors.go                        # Payment module custom errors
+    │   │
     │   ├── biz/
+    │   │   ├── checkout.go                      # Use case: create payment/checkout record
+    │   │   ├── callback.go                      # Use case: handle payment callback status update
+    │   │   ├── get_payment.go                   # Use case: fetch payment detail by ID
+    │   │   └── list_payments.go                 # Use case: list payments with paging/filter
+    │   │
     │   ├── storage/
+    │   │   ├── sql.go                           # Payment SQL store root + shared helpers
+    │   │   ├── sql_payment.go                   # SQL for payment reads/writes
+    │   │   └── sql_payment_tx.go                # Transactional SQL for payment state changes when needed
+    │   │
     │   └── transport/gin/
+    │       ├── routes.go                        # Register /payments routes
+    │       ├── checkout_handler.go              # HTTP handler: POST /payments/checkout
+    │       ├── callback_handler.go              # HTTP handler: POST /payments/callback
+    │       ├── get_payment_handler.go           # HTTP handler: GET /payments/:id
+    │       └── list_payments_handler.go         # HTTP handler: GET /payments
     │
     └── outbox/
         ├── model/
+        │   ├── outbox_event.go                  # Outbox event entity, enqueue/update DTOs
+        │   ├── filter.go                        # Filter structure for outbox event listing
+        │   ├── paging.go                        # Paging structure for outbox list
+        │   └── errors.go                        # Outbox module custom errors
+        │
         ├── biz/
+        │   ├── enqueue_event.go                 # Use case: create outbox event
+        │   ├── list_pending_events.go           # Use case: list outbox events
+        │   ├── mark_processed.go                # Use case: mark event as processed
+        │   └── mark_failed.go                   # Use case: mark event as failed
+        │
         ├── storage/
+        │   ├── sql.go                           # Outbox SQL store root
+        │   ├── sql_outbox.go                    # SQL for enqueue/list/update outbox events
+        │   └── sql_outbox_tx.go                 # Transaction-capable helper for outbox persistence
+        │
         └── transport/gin/
+            ├── routes.go                        # Register /outbox/events routes
+            ├── enqueue_event_handler.go         # HTTP handler: POST /outbox/events
+            ├── list_pending_events_handler.go   # HTTP handler: GET /outbox/events
+            ├── mark_processed_handler.go        # HTTP handler: POST /outbox/events/:id/processed
+            └── mark_failed_handler.go           # HTTP handler: POST /outbox/events/:id/failed
 ```
 
 ## Module-First Layering
@@ -312,40 +444,3 @@ This keeps handlers thin, avoids **ORM coupling**, and makes it easier to reason
 └─────────────────────────────────────────────┘
 ```
 
-## Running Locally
-
-### 1) Start infrastructure
-
-```bash
-docker compose up -d
-```
-
-### 2) Set environment variables
-
-Default .env in the repository:
-
-```env
-DB_DSN=postgres://postgres:postgres@localhost:5432/stockflow?sslmode=disable
-REDIS_ADDR=127.0.0.1:6379
-PORT=8080
-```
-
-### 3) Run the application
-
-```bash
-go run main.go
-```
-
-### 4) Health check
-
-```http
-GET /health
-```
-
-## Notes
-
-- The project intentionally uses **handwritten SQL** instead of an ORM
-- **PostgreSQL** is the source of truth for persistence design
-- **Redis** is currently used for rate limiting
-- Some repository parts, especially **database bootstrap/migrations**, are still incomplete and may require manual schema setup before all endpoints work end-to-end
-- The **outbox module** exists in the source tree, but its business integration level is not yet as complete as the core modules
