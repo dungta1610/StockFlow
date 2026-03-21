@@ -110,8 +110,7 @@ This backend can be viewed as a mini e-commerce architecture centered on **produ
 │                     Module-First Application                     │
 │                                                                  │
 │  User Module        Product Module        Warehouse Module       │
-│  Inventory Module   Order Module          Payment Module         │
-│  Outbox Module (experimental)                                    │
+│  Inventory Module   Order Module          Payment Module         |│                                                                  │
 └──────────────────────────────────────────────────────────────────┘
                                │
                 ┌──────────────┴──────────────┐
