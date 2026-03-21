@@ -122,8 +122,7 @@ This backend can be viewed as a mini e-commerce architecture centered on **produ
 │ - warehouses                 │   └──────────────────────────────┘
 │ - inventory / transactions   │
 │ - orders / order_items       │
-│ - payments                   │
-│ - outbox_events              │
+│ - payments                   │             
 └──────────────────────────────┘
 ```
 
